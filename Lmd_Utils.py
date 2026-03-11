@@ -7,17 +7,21 @@ nltk.download('punkt_tab')
 all_word=[]
 from sklearn.feature_extraction.text import TfidfVectorizer
 from nltk.stem import PorterStemmer
-from sklearn.metrics.pairwise import cosine_similarity
 vectorizer = TfidfVectorizer()
 stemmer = PorterStemmer()
 import numpy as np
 from nltk.corpus import stopwords
 import re
-from nltk.stem import PorterStemmer
 import string
+import faiss
+from sklearn.metrics.pairwise import cosine_similarity
+from sentence_transformers import SentenceTransformer
 
-loss=0.8
+
+
+EMBEDDING_MODEL = 'keepitreal/vietnamese-sbert'
 stopwords = set(stopwords.words('english'))
+simu=0.8
 
 
 def bag_of_words(all_text,text):
@@ -28,33 +32,33 @@ def bag_of_words(all_text,text):
     return bag
 
 def cleantext(text):
-    text = str(text)
+    text = str(text.lower())
+    text = re.sub(r"[^a-zA-Z0-9]"," ",text)
     text = re.sub(r".*\['(.*?)'\].*", r"\1", text)
     text = text.translate(str.maketrans('', '', string.punctuation))
     return text
 
 
 
-def chatbot(user_input,vectorizern,X_trainn,answersn):
-    user_input=cleantext(user_input)
-    user_vec = vectorizern.transform([user_input])
+
+def chatbot_TF_IDF(text,vectt,X_trainn):
+    user_input=cleantext(text)
+    user_vec = vectt.transform([user_input])
     sim = cosine_similarity(user_vec, X_trainn)
-    if (sim.max() > loss):
-        idx = sim.argmax()
-        return [answersn[idx], 1]
-    else:
-        return [
-            'Sorry, I dont have the data to answer your question. I will forward your question to the support staff, please wait.',
-            0]
-vct="./models/tfidf_QA_VN.pkl"
-ques="./models/Question_QA_VN.pkl"
-aws="./models/Answer_QA_VN.pkl"
-vector = joblib.load((vct))
-model = joblib.load((ques))
-answers = joblib.load((aws))
+    return [sim.argmax()] if sim.max() >= simu else []
 
-a="Phạm văn đồng là ai"
-print(chatbot(a,vector,model,answers))
 
+
+
+
+
+embed_model = SentenceTransformer(EMBEDDING_MODEL)
+
+
+def Chatbot_Rag_embed(text,index, top=1):
+    vec = embed_model.encode([text], convert_to_numpy=True)
+    faiss.normalize_L2(vec)
+    scores, indices = index.search(vec, top)
+    return [indices[0][i] for i in range(top) if scores[0][i]>=simu]
 
 

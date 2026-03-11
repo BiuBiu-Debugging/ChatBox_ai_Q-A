@@ -3,8 +3,20 @@ from tkinter import font as tkfont
 import threading
 import datetime
 import time
-from Lmd_Utils import chatbot
+
+import faiss
+
+from Lmd_Utils import chatbot_TF_IDF,Chatbot_Rag_embed
 import joblib
+
+#vect=joblib.load('./models_TF-IDF/tfidf_QA_VN.pkl')
+#X_train=joblib.load('./models_TF-IDF/Question_QA_VN.pkl')
+#answers=joblib.load('./models_TF-IDF/Answer_QA_VN.pkl')
+#questions=joblib.load( './models_TF-IDF/Question_QA_VN.pkl')
+
+index = faiss.read_index('./models_rag/faiss_index.bin')
+answers=joblib.load('./models_rag/answers.pkl')
+questions=joblib.load( './models_rag/questions.pkl')
 
 
 C = {
@@ -33,9 +45,7 @@ C = {
 
 MONO = "Courier New"
 SANS = "Trebuchet MS"
-vct="./models/tfidf_QA_VN.pkl"
-ques="./models/Question_QA_VN.pkl"
-aws="./models/Answer_QA_VN.pkl"
+
 
 
 class ChatboxApp(tk.Tk):
@@ -51,9 +61,10 @@ class ChatboxApp(tk.Tk):
         self._typing_job = None
         self._is_thinking = False
         self.after(100, self.input_box.focus_set)
-        self.vector  = joblib.load((vct))
-        self.model   = joblib.load((ques))
-        self.answers = joblib.load((aws))
+        self.index=index
+        self.answers=answers
+        self.questions=questions
+
 
     def _setup_fonts(self):
         self.f_title = tkfont.Font(family=MONO, size=13, weight="bold")
@@ -265,11 +276,14 @@ class ChatboxApp(tk.Tk):
 
     def _fetch_reply(self, text: str):
         try:
-            a=chatbot(text, self.vector, self.model, self.answers)
-            print(a)
-            reply = a[0]
-            print(reply)
-            error = None
+            a = Chatbot_Rag_embed(text, self.index)
+            result =''
+            if (len(a)>0):
+                result=answers[a[0]]
+            else:
+                result="Xin lỗi, tôi không có dữ liệu cho câu hỏi của bạn"
+            error=None
+            reply=result
         except Exception as exc:
             reply = None
             error = str(exc)
