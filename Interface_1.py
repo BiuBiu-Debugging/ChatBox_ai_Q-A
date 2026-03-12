@@ -6,7 +6,7 @@ import time
 
 import faiss
 
-from Lmd_Utils import chatbot_TF_IDF,Chatbot_Rag_embed
+from Lmd_Utils import chatbot_TF_IDF,Chatbot_AI_Rag_LLM_qwen_ollamaws
 import joblib
 
 #vect=joblib.load('./models_TF-IDF/tfidf_QA_VN.pkl')
@@ -61,11 +61,6 @@ class ChatboxApp(tk.Tk):
         self._typing_job = None
         self._is_thinking = False
         self.after(100, self.input_box.focus_set)
-        self.index=index
-        self.answers=answers
-        self.questions=questions
-
-
     def _setup_fonts(self):
         self.f_title = tkfont.Font(family=MONO, size=13, weight="bold")
         self.f_body  = tkfont.Font(family=MONO, size=10)
@@ -276,14 +271,9 @@ class ChatboxApp(tk.Tk):
 
     def _fetch_reply(self, text: str):
         try:
-            a = Chatbot_Rag_embed(text, self.index)
-            result =''
-            if (len(a)>0):
-                result=answers[a[0]]
-            else:
-                result="Xin lỗi, tôi không có dữ liệu cho câu hỏi của bạn"
+            a = Chatbot_AI_Rag_LLM_qwen_ollamaws(text)
             error=None
-            reply=result
+            reply=a
         except Exception as exc:
             reply = None
             error = str(exc)
