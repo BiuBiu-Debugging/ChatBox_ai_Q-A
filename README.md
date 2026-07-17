@@ -160,12 +160,7 @@ RAG_DOCUMENT_ASSISTANT/
 - **SQLite** – lưu trữ metadata file đã upload
 - **Ollama** – chạy LLM & embedding model local
 
-## 📌 Ghi chú
 
-- Dữ liệu vector database (`data/vector_db`) và tài liệu upload (`data/uploads`) nên được thêm vào `.gitignore` nếu không muốn commit dữ liệu người dùng.
-- File `model/model.py` hiện có đoạn code test embedding (`embed_query`, `print`) — nên tách riêng thành script kiểm thử độc lập thay vì chạy khi import module.
-- Cần đảm bảo model `qwen2.5` và `nomic-embed-text` đã được `ollama pull` trước khi chạy, nếu không hệ thống sẽ báo lỗi kết nối.
 
-## 📄 License
 
-Chưa xác định — vui lòng bổ sung thông tin license phù hợp cho dự án của bạn.
+
