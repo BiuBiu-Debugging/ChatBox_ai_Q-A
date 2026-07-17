@@ -1,4 +1,3 @@
-
 import os
 import time
 
@@ -46,11 +45,7 @@ with st.sidebar:
     st.markdown("---")
     st.subheader(" Thêm file vào thư mục")
 
-    target_folder = st.text_input(
-        "Đường dẫn thư mục lưu file",
-        value=UPLOADS_DIR,
-        help="File sẽ được lưu vào thư mục này nếu tên file chưa tồn tại trong database.",
-    )
+    target_folder =UPLOADS_DIR
 
     uploaded_files = st.file_uploader(
         "Chọn file để thêm",
@@ -61,8 +56,6 @@ with st.sidebar:
     if st.button(" Lưu file vào thư mục"):
         if not uploaded_files:
             st.warning("Bạn chưa chọn file nào.")
-        elif not target_folder.strip():
-            st.warning("Vui lòng nhập đường dẫn thư mục.")
         else:
             os.makedirs(target_folder, exist_ok=True)
             saved_count = 0
@@ -87,14 +80,7 @@ with st.sidebar:
 
             st.caption(f"Hoàn tất: {saved_count} file đã lưu, {skipped_count} file bị bỏ qua (trùng).")
 
-    st.markdown("---")
-    st.markdown(
-        "**Hướng dẫn:**\n"
-        "1. Nhập câu hỏi ở ô chat bên dưới.\n"
-        "2. Nhấn Enter để gửi.\n"
-        "3. Trợ lý sẽ hiển thị câu trả lời.\n\n"
-        "Thay hàm `get_answer()` trong code để kết nối với RAG pipeline thật."
-    )
+
 
 
 user_question = st.chat_input("Nhập câu hỏi của bạn...")
@@ -105,8 +91,15 @@ if user_question:
         st.markdown(user_question)
 
     with st.chat_message("assistant"):
-        with st.spinner("Đang suy nghĩ..."):
-            answer = rag_answer(user_question, emb)
-        st.markdown(answer)
+        with st.spinner("Đang tìm tài liệu liên quan..."):
+            gen = rag_answer_stream(user_question, emb)
+            first_chunk = next(gen, None)
+
+        def _chained_stream():
+            if first_chunk is not None:
+                yield first_chunk
+            yield from gen
+
+        answer = st.write_stream(_chained_stream())
 
     st.session_state.messages.append({"role": "assistant", "content": answer})

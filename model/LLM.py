@@ -65,15 +65,7 @@ def _strip_source_labels(text: str) -> str:
 
 
 def _clean_response(text: str) -> str:
-    """
-    Extract the actual answer from a model response, handling <think> tags.
 
-    Strategy:
-    1. If there's content AFTER the </think> closing tag, use that.
-    2. If stripping the tags leaves nothing, extract from INSIDE the tags.
-    3. If there's an unclosed <think> tag, grab what came after it.
-    4. Fallback: strip all tags and return whatever's left.
-    """
     if not text or not text.strip():
         return ""
 
@@ -172,6 +164,31 @@ def rag_answer(question, emb: embedding):
     )
 
     return answer
+
+
+def rag_answer_stream(question, emb: embedding):
+
+    results = emb.search(
+        question,
+        top_k=4
+    )
+
+    if not results:
+        yield "Không tìm thấy thông tin trong tài liệu."
+        return
+
+    context = ""
+    for i, result in enumerate(results):
+        context += (
+            f"[Source {i+1}: {result['doc_id']}]\n"
+            f"{result['text']}\n\n"
+        )
+
+    yield from generate_answer_stream(
+        context=context,
+        question=question
+    )
+
 
 def generate_answer_stream(context: str, question: str, model_name: str = LLM_MODEL):
     llm = get_llm(model_name)

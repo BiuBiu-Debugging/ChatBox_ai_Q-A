@@ -10,7 +10,7 @@ DATA_DIR = os.path.join(BASE_DIR, "data")
 UPLOADS_DIR = os.path.join(DATA_DIR, "uploads")
 VECTOR_DB_DIR = os.path.join(DATA_DIR, "vector_db")
 
-TOP_K = int(os.getenv("TOP_K", "8"))
+TOP_K = int(os.getenv("TOP_K", "5"))
 
 API_KEY = os.getenv("API_KEY", "")
 

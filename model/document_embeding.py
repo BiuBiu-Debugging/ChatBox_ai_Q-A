@@ -302,7 +302,7 @@ class embedding:
 
         return scored[:fetch_k]
 
-    def search(self, query: str, top_k: int = 4, doc_ids: list[str] | None = None) -> list[dict]:
+    def search(self, query: str, top_k: int = TOP_K, doc_ids: list[str] | None = None) -> list[dict]:
         if self.index is None or self.index.ntotal == 0:
             return []
 
