@@ -1,151 +1,171 @@
 # 🤖 RAG Document Assistant
 
-A Retrieval-Augmented Generation (RAG) chatbot that answers questions from company documents using semantic search with FAISS and Large Language Models (LLMs).
+Trợ lý ảo chatbot hỏi-đáp tài liệu, sử dụng kiến trúc **RAG (Retrieval-Augmented Generation)** với LLM chạy local qua **Ollama**. Người dùng tải tài liệu lên (PDF, DOCX, TXT), hệ thống sẽ trích xuất, chia nhỏ, embedding và lưu vào vector database. Khi đặt câu hỏi, hệ thống tìm các đoạn văn bản liên quan nhất và đưa vào LLM để sinh câu trả lời có trích dẫn nguồn.
 
----
+## ✨ Tính năng chính
 
-## 📌 Overview
+- **Giao diện chat** trực quan bằng [Streamlit](https://streamlit.io/), hỗ trợ tiếng Việt.
+- **Upload & quản lý tài liệu**: hỗ trợ `.pdf`, `.docx`, `.txt`; tự động chống trùng lặp bằng hash tên file, lưu metadata vào SQLite.
+- **Hybrid Search**: kết hợp tìm kiếm ngữ nghĩa (FAISS vector search) và tìm kiếm từ khóa (BM25), hợp nhất kết quả bằng thuật toán **Reciprocal Rank Fusion (RRF)**.
+- **Re-ranking**: sử dụng Cross-Encoder (`cross-encoder/ms-marco-MiniLM-L-6-v2`) để sắp xếp lại kết quả theo độ liên quan trước khi đưa vào LLM.
+- **Trích dẫn nguồn**: câu trả lời của LLM luôn đi kèm ký hiệu trích dẫn `[^X]` tương ứng với tài liệu nguồn.
+- **LLM & Embedding chạy local** thông qua Ollama (mặc định: `qwen2.5` cho sinh câu trả lời, `nomic-embed-text` cho embedding).
+- **Chunking thông minh** bằng `RecursiveCharacterTextSplitter` (LangChain), có thể tuỳ chỉnh kích thước & độ chồng lấp.
+- Hỗ trợ **streaming** câu trả lời (sinh từng phần theo thời gian thực).
 
-RAG Document Assistant is an intelligent question-answering system designed to retrieve relevant information from technical documents before generating responses with an LLM.
-
-Instead of relying only on the model's internal knowledge, the chatbot first searches a vector database for the most relevant document chunks, then uses those retrieved contexts to produce accurate and context-aware answers.
-
-This project is suitable for:
-
-* Enterprise document assistants
-* Internal knowledge bases
-* Technical documentation search
-* PDF/Word/TXT document Q&A
-* Customer support systems
-
----
-
-## ✨ Features
-
-* 📄 Read multiple document formats
-
-  * PDF
-  * Microsoft Word (.docx)
-  * TXT
-
-*  Automatic document chunking
-
-*  Text preprocessing
-
-*  Semantic search using Sentence Transformers
-
-*  FAISS vector database for fast retrieval
-
-*  Local LLM inference with Ollama
-
-*  Interactive Streamlit web interface
-
-*  Retrieval-Augmented Generation (RAG)
-
----
-
-
-
-## 🛠 Technologies
-
-* Python 3.12
-* Streamlit
-* FAISS
-* Sentence Transformers
-* Ollama
-* LangChain (optional)
-* PyPDF2
-* python-docx
-* NumPy
-
----
-
-
-
-## ⚙️ Installation
-
-Clone the repository
-
-```bash
-git clone https://github.com/BiuBiu-Debugging/ChatBox_ai_Q-A.git
-cd ChatBox_ai_Q-A
-```
-
-Create a virtual environment
-
-```bash
-python -m venv .venv
-```
-
-Activate
-
-Linux
-
-```bash
-source .venv/bin/activate
-```
-
-Windows
-
-```bash
-.venv\Scripts\activate
-```
-
-Install dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
----
-
-## 📥 Install Ollama
-
-Install Ollama
-
-```bash
-curl -fsSL https://ollama.com/install.sh | sh
-```
-
-Download the language model
-
-```bash
-ollama pull qwen2.5:3b
-```
-
-Run Ollama
-
-```bash
-ollama serve
-```
-
----
-
-## ▶️ Run Application
-
-```bash
-streamlit run main.py
-```
-
-The application will start at
+## 🏗️ Kiến trúc & luồng xử lý
 
 ```
-http://localhost:8501
+┌─────────────┐     upload      ┌──────────────────┐
+│   Người     │ ──────────────► │  register_file.py │──► SQLite (chống trùng file)
+│   dùng      │                 └──────────────────┘
+│ (Streamlit) │                          │
+└─────────────┘                          ▼
+      │                        ┌──────────────────────┐
+      │                        │ document_embeding.py  │
+      │                        │  - Đọc file (pdf/docx)│
+      │  câu hỏi               │  - Chunking văn bản   │
+      ▼                        │  - Embedding (Ollama) │
+┌─────────────┐                │  - Lưu FAISS + BM25   │
+│   LLM.py    │◄──── search ───│                       │
+│ rag_answer()│                └──────────────────────┘
+│  - Hybrid   │
+│    search   │
+│  - Rerank   │
+│  - Sinh câu │
+│    trả lời  │
+└─────────────┘
 ```
 
----
+**Luồng thêm tài liệu:**
+1. Người dùng chọn file trong sidebar → hệ thống hash tên file, kiểm tra trùng trong SQLite.
+2. Nếu chưa tồn tại: lưu file vào thư mục `data/uploads`, ghi metadata vào DB, sau đó chia nhỏ (chunk) và embedding, lưu vào FAISS index.
 
-## 🔍 Workflow
+**Luồng hỏi-đáp (RAG):**
+1. Câu hỏi được tìm kiếm song song bằng FAISS (vector similarity) và BM25 (keyword).
+2. Kết quả được hợp nhất bằng RRF, sau đó re-rank bằng Cross-Encoder.
+3. Top-K đoạn văn bản liên quan nhất được đưa vào prompt cùng câu hỏi.
+4. LLM (qua Ollama) sinh câu trả lời kèm trích dẫn nguồn `[^X]`.
 
-1. Load documents
-2. Split documents into chunks
-3. Generate embeddings
-4. Store vectors in FAISS
-5. User submits a question
-6. Retrieve the most relevant chunks
-7. Send retrieved context to Ollama
-8. Generate the final answer
+## 📁 Cấu trúc thư mục
 
--
+```
+RAG_DOCUMENT_ASSISTANT/
+├── .venv/                      # Môi trường ảo Python
+├── data/
+│   ├── uploads/                # Tài liệu người dùng tải lên (pdf, docx, txt)
+│   └── vector_db/               # Dữ liệu vector database
+│       ├── faiss.index          # FAISS index (vector search)
+│       ├── vectors.npy          # Ma trận vector embedding
+│       ├── chunks.npy           # Danh sách đoạn văn bản đã chia nhỏ
+│       └── doc_ids.npy          # ID tài liệu tương ứng với từng chunk
+├── model/
+│   ├── .env                     # Biến môi trường (không commit lên git)
+│   ├── config.py                 # Cấu hình chung (đường dẫn, model, tham số)
+│   ├── document_embeding.py      # Đọc, chunk, embedding & tìm kiếm tài liệu
+│   ├── LLM.py                    # Giao tiếp với Ollama LLM, sinh câu trả lời RAG
+│   ├── model.py                  # Khởi tạo embedding model
+│   └── register_file.py          # Quản lý metadata file (SQLite)
+├── file_uploads.db               # Cơ sở dữ liệu SQLite lưu thông tin file đã upload
+├── main.py                       # Điểm khởi chạy ứng dụng Streamlit
+└── README.md
+```
 
-https://github.com/BiuBiu-Debugging
+## ⚙️ Yêu cầu hệ thống
+
+- Python 3.10+
+- [Ollama](https://ollama.com/) đã được cài đặt và đang chạy local
+- Các model Ollama cần thiết:
+  ```bash
+  ollama pull qwen2.5
+  ollama pull nomic-embed-text
+  ```
+
+## 🚀 Cài đặt
+
+1. **Clone repo**
+
+   ```bash
+   git clone <repo-url>
+   cd RAG_DOCUMENT_ASSISTANT
+   ```
+
+2. **Tạo môi trường ảo & cài dependencies**
+
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate      # Windows: .venv\Scripts\activate
+   pip install -r requirements.txt
+   ```
+
+3. **Cấu hình biến môi trường**
+
+   Tạo file `model/.env` với nội dung (tùy chỉnh theo nhu cầu):
+
+   ```env
+   OLLAMA_BASE_URL=http://localhost:11434
+   LLM_MODEL=qwen2.5:latest
+   EMBEDDING_MODEL=nomic-embed-text:latest
+   TOP_K=8
+   CHUNK_SIZE=1000
+   CHUNK_OVERLAP=200
+   MAX_FILE_SIZE_MB=50
+   RATE_LIMIT=30/minute
+   API_KEY=
+   ```
+
+4. **Khởi động Ollama** (nếu chưa chạy)
+
+   ```bash
+   ollama serve
+   ```
+
+5. **Chạy ứng dụng**
+
+   ```bash
+   streamlit run main.py
+   ```
+
+   Ứng dụng sẽ mở tại `http://localhost:8501`.
+
+## 📝 Hướng dẫn sử dụng
+
+1. Mở sidebar, chọn **"Thêm file vào thư mục"** → tải lên các file `.pdf`, `.docx` hoặc `.txt`.
+2. Nhấn **"Lưu file vào thư mục"** để lưu và tự động embedding tài liệu.
+3. Nhập câu hỏi vào ô chat ở cuối trang, nhấn Enter.
+4. Trợ lý sẽ tìm các đoạn tài liệu liên quan và trả lời kèm trích dẫn nguồn.
+5. Có thể xóa lịch sử hội thoại bằng nút **"🗑️ Xóa lịch sử hội thoại"** trong sidebar.
+
+## 🔧 Cấu hình nâng cao
+
+| Biến môi trường     | Mô tả                                              | Mặc định                  |
+|----------------------|-----------------------------------------------------|----------------------------|
+| `OLLAMA_BASE_URL`    | Địa chỉ Ollama server                                | `http://localhost:11434`  |
+| `LLM_MODEL`          | Model dùng để sinh câu trả lời                       | `qwen2.5:latest`          |
+| `EMBEDDING_MODEL`    | Model dùng để embedding văn bản                      | `nomic-embed-text:latest` |
+| `TOP_K`              | Số đoạn văn bản liên quan nhất được lấy khi truy vấn | `8`                        |
+| `CHUNK_SIZE`         | Kích thước mỗi đoạn văn bản (ký tự)                  | `1000`                     |
+| `CHUNK_OVERLAP`      | Độ chồng lấp giữa các đoạn                           | `200`                      |
+| `MAX_FILE_SIZE_MB`   | Giới hạn dung lượng file upload                      | `50`                       |
+| `RATE_LIMIT`         | Giới hạn tần suất request                            | `30/minute`                |
+
+## 📦 Công nghệ sử dụng
+
+- **Streamlit** – giao diện chat
+- **LangChain** (`langchain-ollama`, `langchain-text-splitters`) – tích hợp LLM & chunking
+- **FAISS** – vector database cho tìm kiếm ngữ nghĩa
+- **rank_bm25** – tìm kiếm từ khóa (BM25)
+- **sentence-transformers (CrossEncoder)** – re-ranking kết quả tìm kiếm
+- **pypdf**, **python-docx** – trích xuất nội dung tài liệu
+- **SQLite** – lưu trữ metadata file đã upload
+- **Ollama** – chạy LLM & embedding model local
+
+## 📌 Ghi chú
+
+- Dữ liệu vector database (`data/vector_db`) và tài liệu upload (`data/uploads`) nên được thêm vào `.gitignore` nếu không muốn commit dữ liệu người dùng.
+- File `model/model.py` hiện có đoạn code test embedding (`embed_query`, `print`) — nên tách riêng thành script kiểm thử độc lập thay vì chạy khi import module.
+- Cần đảm bảo model `qwen2.5` và `nomic-embed-text` đã được `ollama pull` trước khi chạy, nếu không hệ thống sẽ báo lỗi kết nối.
+
+## 📄 License
+
+Chưa xác định — vui lòng bổ sung thông tin license phù hợp cho dự án của bạn.
